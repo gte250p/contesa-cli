@@ -1,0 +1,187 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.gtri.contesa.tools</groupId>
+    <artifactId>contesa-cli</artifactId>
+    <version>3.0.12-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>ConTesA Command Line Interface</name>
+    <description>
+        This project builds an executable java jar file which runs the ConTesA 
+        rule validation engine and produces XML rule result output.
+    </description>
+
+    <parent>
+        <groupId>org.gtri</groupId>
+        <artifactId>super-pom</artifactId>
+        <version>2.0.0</version>
+    </parent>
+
+    <properties>
+        <contesa.version>3.0.12</contesa.version>
+    </properties>
+
+
+    <build>
+        <plugins>
+            <!-- Enables Groovy Compilation -->
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.0</version>
+                <configuration>
+                    <compilerId>groovy-eclipse-compiler</compilerId>
+                    <compilerArgument>nowarn</compilerArgument>
+                    <verbose>false</verbose>
+                    <source>1.6</source>
+                    <target>1.6</target>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.codehaus.groovy</groupId>
+                        <artifactId>groovy-eclipse-compiler</artifactId>
+                        <version>2.8.0-01</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.codehaus.groovy</groupId>
+                        <artifactId>groovy-eclipse-batch</artifactId>
+                        <version>2.1.5-03</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>2.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>assembly</goal></goals>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>src/main/assembly/dist.xml</descriptor>
+                            </descriptors>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>org.gtri.contesa.tools.cli.ValidationCLI</mainClass>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>./lib/</classpathPrefix>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+
+    <dependencies>
+
+        <!-- Contesa Dependencies -->
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-core-api</artifactId>
+            <version>${contesa.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-tools-api</artifactId>
+            <version>${contesa.version}</version>
+        </dependency>
+
+
+        <!-- TODO Import runtime contesa libs -->
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-core-runtime-base</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-language-implementations-custom-language</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-language-implementations-schematron-1.6</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-core-functions-contesa</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-tools-runtime-base</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-tools-runtime-reports-xml-report</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        
+        <!-- Other Dependencies -->
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.1.9</version>
+            <type>jar</type>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.4</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-cli</groupId>
+            <artifactId>commons-cli</artifactId>
+            <version>1.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.util</groupId>
+            <artifactId>logging-log4j-impl</artifactId>
+            <version>2.0.0</version>
+            <scope>runtime</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency><!-- Have to do this so that -v can augment the log4j logging level -->
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>1.2.16</version>
+        </dependency>
+
+    </dependencies>
+
+    <repositories>
+        <repository>
+            <id>gtri-external</id>
+            <url>https://maven.gtri.gatech.edu/repos/external</url>
+        </repository>
+    </repositories>
+
+
+</project>

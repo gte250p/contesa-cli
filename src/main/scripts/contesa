@@ -1,0 +1,23 @@
+#!/bin/bash
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+COUNT_OF_JARS=0
+CP=""
+EXE_JAR=""
+
+for jar in $SCRIPT_DIR/lib/*.jar; do
+    if [ $COUNT_OF_JARS -eq 0 ]; then
+        CP=$jar
+    fi
+    if [ $COUNT_OF_JARS -gt 0 ]; then
+        CP=$CP:$jar
+    fi
+    COUNT_OF_JARS=`expr $COUNT_OF_JARS + 1`
+done
+
+for jar in $SCRIPT_DIR/*.jar; do
+    EXE_JAR=$jar
+    CP=$CP:$jar
+done
+
+java -classpath $CP org.gtri.contesa.tools.cli.ValidationCLI
