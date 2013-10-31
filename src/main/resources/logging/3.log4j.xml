@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd" >
+
+<log4j:configuration>
+    <appender name="stderr" class="org.apache.log4j.ConsoleAppender">
+        <param name="threshold" value="error" />
+        <param name="target" value="System.err"/>
+        <layout class="gtri.logging.log4j.JANSIPatternLayout">
+            <param name="ConversionPattern" value="[%-5p]  %m%n" />
+        </layout>
+    </appender>
+    <appender name="stdout" class="org.apache.log4j.ConsoleAppender">
+        <param name="threshold" value="debug" />
+        <param name="target" value="System.out"/>
+        <layout class="gtri.logging.log4j.JANSIPatternLayout">
+            <param name="ConversionPattern" value="[%-5p]  %m%n" />
+        </layout>
+        <filter class="org.apache.log4j.varia.LevelRangeFilter">
+            <param name="LevelMin" value="debug" />
+            <param name="LevelMax" value="warn" />
+        </filter>
+    </appender>
+
+    <logger name="org.gtri.contesa">
+        <level value="WARN" />
+    </logger>
+    <!-- TODO Add in some lower-level contesa debugging.  Should be more verbose, but still make sense to a user who's looking for particular failures. -->
+
+
+
+    <logger name="org.gtri.contesa.tools.cli">
+        <level value="DEBUG" />
+    </logger>
+
+    <root>
+        <priority value="warn"></priority>
+        <appender-ref ref="stderr" />
+        <appender-ref ref="stdout" />
+    </root>
+
+</log4j:configuration>

@@ -20,8 +20,12 @@ class ValidationCLI {
         try{
             CONTESA_OPTIONS = new ContesaOpts(args);
             validateOptions(CONTESA_OPTIONS);
+            Log4jInitializer.initialize(CONTESA_OPTIONS);
 
-
+            logger.debug("Debug test")
+            logger.info("Info test")
+            logger.warn("Warn test")
+            logger.error("Error test");
 
             System.exit(0);
         }catch(Throwable t){
