@@ -20,4 +20,4 @@ for jar in $SCRIPT_DIR/*.jar; do
     CP=$CP:$jar
 done
 
-java -classpath $CP org.gtri.contesa.tools.cli.ValidationCLI
+java -classpath $CP org.gtri.contesa.tools.cli.ValidationCLI "$@"
