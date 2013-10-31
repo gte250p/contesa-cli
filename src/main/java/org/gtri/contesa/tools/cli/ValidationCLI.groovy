@@ -19,6 +19,7 @@ class ValidationCLI {
     public static void main(String[] args){
         try{
             CONTESA_OPTIONS = new ContesaOpts(args);
+            validateOptions(CONTESA_OPTIONS);
 
 
 
@@ -28,6 +29,13 @@ class ValidationCLI {
             System.exit(1);
         }
     }//end main()
+
+
+    private static void validateOptions(ContesaOpts opts){
+        if( opts.instancePath == null || opts.instancePath.trim().length() == 0 ){
+            throw new Exception("Missing required instance file to validate.")
+        }
+    }//end opts()
 
 
 
