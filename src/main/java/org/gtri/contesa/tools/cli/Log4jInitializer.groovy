@@ -48,8 +48,12 @@ class Log4jInitializer {
         // For error messages, they should go to stderr and filePath
 
         File file = new File(filePath);
-        if( !file.parentFile.exists() && !file.parentFile.mkdirs() )
-            throw new Exception("Could not create directory for logs: @|yellow $file.parentFile|@")
+        if( file.exists() )
+            file.delete();
+        else if( file.parentFile && !file.parentFile.exists() ){
+            if( !file.parentFile.mkdirs() )
+                throw new Exception("Could not create directory for logs: @|yellow $file.parentFile|@")
+        }
 
         org.apache.log4j.Logger rootLogger = org.apache.log4j.Logger.getRootLogger();
         rootLogger.removeAppender("stdout");

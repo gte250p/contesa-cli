@@ -15,11 +15,6 @@ class ContesaOpts {
     public Integer verbosity = 0;
 
     /**
-     * If true, the CLI should error for each ruleset present in contesa, but not matched by the given instance.
-     */
-    public Boolean errorOnNoMatch = Boolean.TRUE;
-
-    /**
      * The location of the instance to validate on disk.
      */
     public String instancePath = null;
@@ -35,11 +30,23 @@ class ContesaOpts {
      * is recommended that you suppress logging when outputting a file to the console.
      */
     public String logFilePath = null;
+    public boolean shouldOutputLog(){
+        return (this.logFilePath && this.logFilePath.trim().length() > 0);
+    }
 
     /**
-     * A List of context paths forced to execute via the '--force' parameter.
+     * The output file to write contesa status (event listener events) into.  May be null, in which case output is suppressed.
      */
-    public List<String> forcedContextPaths = new ArrayList<String>();
+    public String statusFilePath = null;
+    public boolean shouldOutputStatusFile(){
+        return (this.statusFilePath && this.statusFilePath.trim().length() > 0);
+    }
+
+    /**
+     * The type of status lines to output.  Supported options are text|xml.
+     */
+    public String statusEntryFormat = "text";
+    public LogEntryFormatter statusEntryFormatter = new LogEntryFormatterText();
 
 
     public ContesaOpts(String[] args){
@@ -61,14 +68,19 @@ class ContesaOpts {
             }else if( arg.startsWith("-l=") || arg.toLowerCase().startsWith("--log=") ){
                 logFilePath = parseArgValue(arg);
 
-            }else if( arg.equals("-ne") || arg.equalsIgnoreCase("--no-error-on-no-match") ){
-                errorOnNoMatch = Boolean.FALSE;
+            }else if( arg.startsWith("-s=") || arg.toLowerCase().startsWith("--status=") ){
+                statusFilePath = parseArgValue(arg);
 
-            }else if( arg.startsWith("-f=") || arg.toLowerCase().startsWith("--force=") ){
-                String value = parseArgValue(arg);
-                value = URLDecoder.decode(value, "UTF-8");
-                if( !forcedContextPaths.contains(value) )
-                    forcedContextPaths.add(value);
+            }else if( arg.startsWith("-sf=") || arg.toLowerCase().startsWith("--status-format=") ){
+                statusEntryFormat = parseArgValue(arg)?.toLowerCase();
+                if( !statusEntryFormat.equals("text") && !statusEntryFormat.equals("xml") ){
+                    throw new Exception("Unsupported status file format: "+statusEntryFormat+".  Expected 'text' or 'xml'.");
+                }
+                if( statusEntryFormat.equalsIgnoreCase("xml") ){
+                    statusEntryFormatter = new LogEntryFormatterXml();
+                }else if( statusEntryFormat.equalsIgnoreCase("text") ){
+                    statusEntryFormatter = new LogEntryFormatterText();
+                }
 
             }else if( arg.startsWith("-") ){
                 throw new Exception("Unrecognized option: ${arg}");

@@ -4,19 +4,26 @@ import gtri.logging.Logger
 import gtri.logging.LoggerFactory
 import org.apache.commons.io.IOUtils
 import org.gtri.contesa.ServiceManager
+import org.gtri.contesa.rules.BusinessRule
 import org.gtri.contesa.rules.RuleContext
 import org.gtri.contesa.rules.RuleContextManager
+import org.gtri.contesa.rules.RuleResult
+import org.gtri.contesa.rules.RuleResultStatus
 import org.gtri.contesa.tools.model.NextRuleExecutionResult
 import org.gtri.contesa.tools.model.ValidationObject
 import org.gtri.contesa.tools.model.ValidationStatus
 import org.gtri.contesa.tools.reporting.Report
 import org.gtri.contesa.tools.reporting.ReportFormat
 import org.gtri.contesa.tools.reporting.ReportGenerator
+import org.gtri.contesa.tools.reporting.model.ReportBusinessRule
 import org.gtri.contesa.tools.reporting.model.ReportModel
+import org.gtri.contesa.tools.reporting.model.ReportRuleContext
+import org.gtri.contesa.tools.reporting.model.ReportRuleResult
 import org.gtri.contesa.tools.services.ContesaAbstractionService
 import org.gtri.contesa.tools.services.FileService
 import org.gtri.contesa.tools.services.RuleExecutionStatus
 import org.gtri.contesa.tools.services.ValidationObjectProvider
+import org.gtri.contesa.xml.XMLDocument
 
 /**
  * Entry point class for command line validation.
@@ -30,26 +37,33 @@ class ValidationCLI {
 
     public static ContesaOpts CONTESA_OPTIONS = null;
 
+    public static ContesaEventListener eventListener = null;
 
     public static void main(String[] args){
         try{
             CONTESA_OPTIONS = new ContesaOpts(args);
             validateOptions(CONTESA_OPTIONS);
             Log4jInitializer.initialize(CONTESA_OPTIONS);
+            setupEventListener();
 
             long startInit = System.currentTimeMillis();
-            logger.debug("Initializing ConTesA System...");
+            logger.debug("Initializing ConTesA Core...");
+            eventListener.initStart();
             ServiceManager serviceManager = ServiceManager.getInstance();
             long stopInit = System.currentTimeMillis();
-            logger.debug("Initialization complete in @|green ${stopInit - startInit}|@ms.")
+            logger.debug("ConTesA Core Initialization complete in @|green ${stopInit - startInit}|@ms.")
+            eventListener.initComplete(stopInit-startInit);
 
             logger.debug("Validating loaded contexts...")
             RuleContextManager rcm = serviceManager.getBean(RuleContextManager.class);
             List<RuleContext> contexts = rcm.getManagedContexts();
-            if( contexts.size() < 1 )
+            if( contexts.size() < 1 ){
+                logger.warn("No rulesets found.")
                 throw new Exception("No rulesets are loaded into ConTesA.  Please place the rule jars into the classpath.")
+            }
             contexts.each {ctx ->
                 logger.debug("Loaded RuleContext: @|cyan ${ctx.name}|@")
+                eventListener.ruleContextLoaded(ctx);
             }
 
             logger.debug("Parsing validation object...");
@@ -65,6 +79,7 @@ class ValidationCLI {
             }
             if( !provider )
                 throw new Exception("Unknown MimeType[${mimeType}], ConTesA cannot validate this.")
+            eventListener.validationObjectProvider(provider, mimeType, CONTESA_OPTIONS.instanceFile);
 
             logger.debug("Successfully resolved mime[@|cyan ${mimeType}|@] provider: @|green ${provider.class.name}|@")
             List<ValidationObject> validationObjects = provider.resolve(CONTESA_OPTIONS.instanceFile, CONTESA_OPTIONS.instanceFile.name, mimeType);
@@ -73,40 +88,79 @@ class ValidationCLI {
             else if( validationObjects.size() < 1 )
                 throw new Exception("Could not parse ValidationObject from file: @|yellow ${CONTESA_OPTIONS.instanceFile}|@")
 
+            if( validationObjects.size() > 1 ){
+                logger.warn("This artifact contains @|cyan ${validationObjects.size()}|@ validation objects.  Only the @|yellow first|@ will be processed.")
+            }
             ValidationObject validationObject = validationObjects.get(0);
+            eventListener.validationObject(validationObject, validationObjects.size())
 
             logger.debug("Resolving @|cyan ContesaAbstractionService|@...")
             ContesaAbstractionService abstractionService = ServiceManager.getInstance().getBean(ContesaAbstractionService.class);
             if( abstractionService == null )
                 throw new Exception("Could not load ConTesA correctly, missing @|yellow abstraction service|@.")
 
+
             logger.debug("Resolving contexts for @|cyan ${validationObject}|@...")
             List<RuleContext> unmatchedContexts = []
             List<RuleContext> matchedContexts = abstractionService.resolveContexts(validationObject);
-            if( contexts.size() != matchedContexts.size() && CONTESA_OPTIONS.errorOnNoMatch ){
-                logger.debug("Some contexts were not matched!");
-                contexts.each{ context ->
-                    if( !matchedContexts.contains(context) ){
-                        unmatchedContexts.add(context);
+            for( RuleContext context : contexts ){
+                if( !matchedContexts.contains(context) ){
+                    logger.debug("Did not match context: @|yellow ${context.name}|@")
+                    unmatchedContexts.add(context);
+                    eventListener.unmatchedContext(context, validationObject);
+                }else{
+                    eventListener.matchedContext(context, validationObject);
+                }
+            }
+
+            int totalRuleCount = 0;
+            contexts.each{ context ->
+                totalRuleCount += context.rules?.size()
+            }
+            int currentRuleIndex = 0;
+            RuleResultStatus overallStatus = RuleResultStatus.SUCCESS;
+
+            List<ReportRuleContext> ranContexts = []
+            List<ReportRuleResult> results = []
+            eventListener.executionStart();
+            XMLDocument document = validationObject.getDocument();
+            for( RuleContext context : contexts ){
+                eventListener.startContext(context);
+                ReportRuleContext reportRuleContext = createReportRuleContext(context);
+                ranContexts.add(reportRuleContext);
+                for( BusinessRule rule : context.rules ){
+                    logger.debug("Executing RuleContext[@|green ${context.name}|@] => BusinessRule[@|cyan ${rule.name}|@]...")
+                    ReportBusinessRule reportBusinessRule = findReportBusinessRule(reportRuleContext, rule);
+                    eventListener.startRule(context, rule);
+                    def themResults = rule.execute(document);
+                    eventListener.stopRule(context, rule);
+                    List<ReportRuleResult> currentResults = []
+                    themResults?.each{ result ->
+                        def currentResult = createReportRuleResult(reportRuleContext, reportBusinessRule, result);
+                        currentResults.add( currentResult );
+                        eventListener.ruleResult(context, rule, result);
+                        if( overallStatus.getOrdering() < result.getStatus().getOrdering() ){
+                            overallStatus = result.getStatus();
+                        }
                     }
+                    results.addAll(currentResults);
+                    currentRuleIndex++;
+                    eventListener.executionUpdate(currentRuleIndex, totalRuleCount, overallStatus.toString());
                 }
-
+                eventListener.stopContext(context);
             }
+            eventListener.executionStop(results)
 
-            logger.debug("Executing rules...")
-            while( !abstractionService.isFinishedExecuting(validationObject) ){
-                NextRuleExecutionResult nextResult = abstractionService.executeNext(validationObject);
-                if( nextResult ){
-                    logger.debug("Successfully executed Rule[@|green ${nextResult.businessRule.name}|@] from Context[@|blue ${nextResult.ruleContext.name}|@].  Produced @|cyan ${nextResult.results.size()}|@ results.")
-                    // TODO What do we do with this?
-                }
-            }
-
+            eventListener.reportGenerationStart()
             logger.debug("Generating ReportModel...")
-            ValidationStatus status = abstractionService.getValidationStatus(validationObject);
-            ReportModel reportModel = status.getReportModel();
-
-            // TODO Add in missing contexts as errors.
+            ReportModel reportModel = new ReportModel();
+            reportModel.setOverallStatus(overallStatus.toString());
+            reportModel.setMatchedContexts(ranContexts);
+            reportModel.setRuleResults(results);
+            reportModel.setRulesExecutedCount(currentRuleIndex);
+            reportModel.setValidationObjectIdentifier(validationObject.getUniqueIdentifier());
+            reportModel.setValidationObjectName(validationObject.getName())
+            reportModel.setValidationObjectSize(-1); // TODO how the hell do I set this?
 
 
             logger.debug("Finding report generator...")
@@ -121,6 +175,8 @@ class ValidationCLI {
                 throw new Exception("Unable to find XML ReportGenerator instance.  Conformance Report cannot be generated.")
 
             Report report = xmlReportGenerator.generate(reportModel);
+            eventListener.reportGenerationStop()
+
             if( CONTESA_OPTIONS.outFilePath && CONTESA_OPTIONS.outFilePath.trim().length() > 0 ){
                 FileOutputStream fOut = new FileOutputStream(CONTESA_OPTIONS.outFilePath, false);
                 IOUtils.copy(report.inputStream, fOut);
@@ -131,14 +187,60 @@ class ValidationCLI {
                 System.out.flush();
             }
 
+            eventListener.validationComplete(); // Must be called last on event listener.
             logger.debug("Validation completed successfully.")
             System.exit(0);
         }catch(Throwable t){
             logger.error(t.getMessage());
+            t.printStackTrace(System.err);
             System.exit(1);
         }
     }//end main()
 
+    private static ReportRuleResult createReportRuleResult(ReportRuleContext reportRuleContext, ReportBusinessRule reportBusinessRule, RuleResult result){
+        def currentResult = new ReportRuleResult();
+        currentResult.setBusinessRule(reportBusinessRule);
+        currentResult.setRuleContext(reportRuleContext);
+        currentResult.setCustomData(result.getCustomData());
+        currentResult.setFile(result.getFile());
+        currentResult.setLineNumber(result.getLineNumber());
+        currentResult.setMessage(result.getMessage());
+        currentResult.setStatus(result.getStatus().toString());
+        currentResult.setUniqueXPath(result.getUniqueXPath());
+        return currentResult;
+    }
+
+    private static ReportRuleContext createReportRuleContext(RuleContext ruleContext){
+        ReportRuleContext reportRuleContext = new ReportRuleContext();
+        reportRuleContext.description = ruleContext.description
+        reportRuleContext.internalId = ruleContext.name.hashCode()
+        reportRuleContext.name = ruleContext.name
+        def rules = []
+        for( BusinessRule rule : ruleContext.rules ){
+            ReportBusinessRule reportBusinessRule = createReportBusinessRule(rule);
+            rules.add(reportBusinessRule);
+        }
+        reportRuleContext.rules = rules
+        return reportRuleContext;
+    }
+
+    private static ReportBusinessRule createReportBusinessRule(BusinessRule rule){
+        ReportBusinessRule reportBusinessRule = new ReportBusinessRule();
+        reportBusinessRule.setDescription(rule.getDescription());
+        reportBusinessRule.setIdentifier(rule.getIdentifier());
+        reportBusinessRule.setImplementationNote(rule.getImplementationDetails().getNote());
+        reportBusinessRule.setImplementationStatus(rule.getImplementationDetails().getStatus().toString());
+        reportBusinessRule.setName(rule.getName());
+        return reportBusinessRule;
+    }
+
+    private static ReportBusinessRule findReportBusinessRule(ReportRuleContext context, BusinessRule rule){
+        context?.rules.each{ reportBusinessRule ->
+            if( reportBusinessRule.identifier == rule.identifier )
+                return reportBusinessRule;
+        }
+        return null;
+    }
 
     private static void validateOptions(ContesaOpts opts){
         if( opts.instancePath == null || opts.instancePath.trim().length() == 0 ){
@@ -146,6 +248,25 @@ class ValidationCLI {
         }
     }//end opts()
 
-
+    private static void setupEventListener(){
+        eventListener = new ContesaEventListenerNoOp();
+        if( CONTESA_OPTIONS.shouldOutputStatusFile() ){
+            logger.debug("Configuring status file[@|cyan ${CONTESA_OPTIONS.statusFilePath}|@]...")
+            File logFile = new File(CONTESA_OPTIONS.statusFilePath);
+            if( logFile.parentFile && !logFile.parentFile.exists() ){
+                if( !logFile.parentFile.mkdirs() ){
+                    logger.error("Cannot create log-file directory: @|red ${logFile.parentFile.path}|@")
+                    throw new Exception("Cannot create log-file directory: ${logFile.parentFile.path}")
+                }
+            }
+            FileOutputStream fos;
+            if( logFile.exists() ){
+                // TODO Do we just delete it?  Or should we append to it?
+                logFile.delete();
+            }
+            fos = new FileOutputStream(logFile);
+            eventListener = new ContesaEventListenerToOutputStream(fos, CONTESA_OPTIONS.statusEntryFormatter);
+        }
+    }
 
 }//end ValidationCLI

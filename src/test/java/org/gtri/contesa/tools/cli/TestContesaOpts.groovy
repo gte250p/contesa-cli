@@ -17,19 +17,17 @@ class TestContesaOpts extends AbstractTest {
     static String ASSEMBLY_XML = "./src/main/assembly/dist.xml"
 
     private void assertDefaults(ContesaOpts opts){
-        assertValues(opts, 0, Boolean.TRUE, null);
+        assertValues(opts, 0, null);
     }
 
     private void assertDefaults(ContesaOpts opts, String path){
-        assertValues(opts, 0, Boolean.TRUE, path);
+        assertValues(opts, 0, path);
     }
 
-    private void assertValues(ContesaOpts opts, Integer verbosity, Boolean errorOnNoMatch, String instancePath){
+    private void assertValues(ContesaOpts opts, Integer verbosity, String instancePath){
         assertThat(opts, notNullValue())
         assertThat(opts.verbosity, notNullValue())
         assertThat(opts.verbosity, equalTo(verbosity))
-        assertThat(opts.errorOnNoMatch, notNullValue())
-        assertThat(opts.errorOnNoMatch, equalTo(errorOnNoMatch))
         if( instancePath ){
             assertThat(opts.instancePath, notNullValue())
             assertThat(opts.instancePath, equalTo(instancePath))
@@ -54,19 +52,19 @@ class TestContesaOpts extends AbstractTest {
 
         def args = ["-v"] as String[];
         ContesaOpts opts = new ContesaOpts(args);
-        assertValues(opts, 1, Boolean.TRUE, null);
+        assertValues(opts, 1, null);
 
         args = ["-vv"] as String[];
         opts = new ContesaOpts(args);
-        assertValues(opts, 2, Boolean.TRUE, null);
+        assertValues(opts, 2, null);
 
         args = ["-vvv"] as String[];
         opts = new ContesaOpts(args);
-        assertValues(opts, 3, Boolean.TRUE, null);
+        assertValues(opts, 3, null);
 
         args = ["-vvvv"] as String[];
         opts = new ContesaOpts(args);
-        assertValues(opts, 4, Boolean.TRUE, null);
+        assertValues(opts, 4, null);
 
         args = ["-vvvvv"] as String[];
         try{
@@ -78,25 +76,6 @@ class TestContesaOpts extends AbstractTest {
 
         logger.info("Successfully tested verbosity in arguments.")
     }//end testVerbosityLevelsInArgs()
-
-    @Test
-    public void testNoErrorSetInArgs() {
-        logger.info("Testing that the argument to switch errors off when no match contexts are found works...")
-
-        def args = ["-ne"] as String[];
-        ContesaOpts opts = new ContesaOpts(args);
-        assertValues(opts, 0, Boolean.FALSE, null);
-
-        args = [] as String[];
-        opts = new ContesaOpts(args);
-        assertDefaults(opts)
-
-        args = ["--no-error-on-no-match"] as String[];
-        opts = new ContesaOpts(args);
-        assertValues(opts, 0, Boolean.FALSE, null);
-
-        logger.info("No error tested ok.");
-    }//end testNoErrorSetInArgs()
 
     @Test
     public void testOnly1InstanceArgumentAllowed() {
@@ -181,52 +160,15 @@ class TestContesaOpts extends AbstractTest {
         // Simple "verbose" option
         args = ["-v", POM_XML] as String[];
         opts = new ContesaOpts(args);
-        assertValues(opts, 1, Boolean.TRUE, POM_XML);
-
-        // Simple no-error and path options
-        args = ["-ne", POM_XML] as String[];
-        opts = new ContesaOpts(args);
-        assertValues(opts, 0, Boolean.FALSE, POM_XML);
+        assertValues(opts, 1, POM_XML);
 
         // All arguments
-        args = ["-v", "-ne", ASSEMBLY_XML] as String[];
+        args = ["-v", ASSEMBLY_XML] as String[];
         opts = new ContesaOpts(args);
-        assertValues(opts, 1, Boolean.FALSE, ASSEMBLY_XML);
+        assertValues(opts, 1, ASSEMBLY_XML);
 
         logger.info("Common options combinations seems fine.")
     }//end testCommonOptionCombinations()
-
-    @Test
-    public void testForceOption() {
-        logger.info("Testing that we can send in force options, and they resolve ok.")
-
-        logger.debug("Testing single forced context...")
-        def args = ['--force=test'] as String[];
-        ContesaOpts opts = new ContesaOpts(args);
-        assertThat( opts.forcedContextPaths.size(), is(1) )
-        assertThat( opts.forcedContextPaths, contains('test') )
-
-        logger.debug("Testing multiple forced contexts...")
-        args = ['--force=test1', '--force=test2'] as String[];
-        opts = new ContesaOpts(args);
-        assertThat( opts.forcedContextPaths.size(), is(2) )
-        assertThat( opts.forcedContextPaths.contains('test1'), is(true) )
-        assertThat( opts.forcedContextPaths.contains('test2'), is(true) )
-
-        logger.debug("Testing duplicate forced contexts only forces a single...")
-        args = ['--force=test', '--force=test'] as String[];
-        opts = new ContesaOpts(args);
-        assertThat( opts.forcedContextPaths.size(), is(1) )
-        assertThat( opts.forcedContextPaths, contains('test') )
-
-        logger.debug("Testing URL decoding works...")
-        args = ['--force=test%201'] as String[];
-        opts = new ContesaOpts(args);
-        assertThat( opts.forcedContextPaths.size(), is(1) )
-        assertThat( opts.forcedContextPaths, contains('test 1') )
-
-        logger.info("Force option seems fine.")
-    }//end testForceOption()
 
 
 
