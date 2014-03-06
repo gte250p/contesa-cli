@@ -196,4 +196,38 @@ class TestContesaOpts extends AbstractTest {
         logger.info("Common options combinations seems fine.")
     }//end testCommonOptionCombinations()
 
+    @Test
+    public void testForceOption() {
+        logger.info("Testing that we can send in force options, and they resolve ok.")
+
+        logger.debug("Testing single forced context...")
+        def args = ['--force=test'] as String[];
+        ContesaOpts opts = new ContesaOpts(args);
+        assertThat( opts.forcedContextPaths.size(), is(1) )
+        assertThat( opts.forcedContextPaths, contains('test') )
+
+        logger.debug("Testing multiple forced contexts...")
+        args = ['--force=test1', '--force=test2'] as String[];
+        opts = new ContesaOpts(args);
+        assertThat( opts.forcedContextPaths.size(), is(2) )
+        assertThat( opts.forcedContextPaths.contains('test1'), is(true) )
+        assertThat( opts.forcedContextPaths.contains('test2'), is(true) )
+
+        logger.debug("Testing duplicate forced contexts only forces a single...")
+        args = ['--force=test', '--force=test'] as String[];
+        opts = new ContesaOpts(args);
+        assertThat( opts.forcedContextPaths.size(), is(1) )
+        assertThat( opts.forcedContextPaths, contains('test') )
+
+        logger.debug("Testing URL decoding works...")
+        args = ['--force=test%201'] as String[];
+        opts = new ContesaOpts(args);
+        assertThat( opts.forcedContextPaths.size(), is(1) )
+        assertThat( opts.forcedContextPaths, contains('test 1') )
+
+        logger.info("Force option seems fine.")
+    }//end testForceOption()
+
+
+
 }//end TestValidationCLI()

@@ -36,6 +36,11 @@ class ContesaOpts {
      */
     public String logFilePath = null;
 
+    /**
+     * A List of context paths forced to execute via the '--force' parameter.
+     */
+    public List<String> forcedContextPaths = new ArrayList<String>();
+
 
     public ContesaOpts(String[] args){
         args.each { arg ->
@@ -58,6 +63,12 @@ class ContesaOpts {
 
             }else if( arg.equals("-ne") || arg.equalsIgnoreCase("--no-error-on-no-match") ){
                 errorOnNoMatch = Boolean.FALSE;
+
+            }else if( arg.startsWith("-f=") || arg.toLowerCase().startsWith("--force=") ){
+                String value = parseArgValue(arg);
+                value = URLDecoder.decode(value, "UTF-8");
+                if( !forcedContextPaths.contains(value) )
+                    forcedContextPaths.add(value);
 
             }else if( arg.startsWith("-") ){
                 throw new Exception("Unrecognized option: ${arg}");
