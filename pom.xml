@@ -4,7 +4,7 @@
 
     <groupId>org.gtri.contesa.tools</groupId>
     <artifactId>contesa-cli</artifactId>
-    <version>3.0.12-SNAPSHOT</version>
+    <version>3.0.13-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>ConTesA Command Line Interface</name>
@@ -20,7 +20,7 @@
     </parent>
 
     <properties>
-        <contesa.version>3.0.12</contesa.version>
+        <contesa.version>3.0.13</contesa.version>
     </properties>
 
 
