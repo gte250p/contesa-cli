@@ -149,6 +149,18 @@
             <version>${contesa.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-tools-reports-html-report</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.gtri.contesa</groupId>
+            <artifactId>contesa-tools-reports-excel-report</artifactId>
+            <version>${contesa.version}</version>
+            <scope>runtime</scope>
+        </dependency>
 
 
 

@@ -1,5 +1,7 @@
 package org.gtri.contesa.tools.cli
 
+import org.gtri.contesa.tools.reporting.ReportFormat
+
 /**
  * A class to manage the options within the contesa cli.
  * User: brad
@@ -24,6 +26,9 @@ class ContesaOpts {
      * The output file to write result XML into.  May be null, in which case it will go to standard out.
      */
     public String outFilePath = null;
+    public boolean hasOutFilePath() {
+        return outFilePath != null && outFilePath.trim().length() > 0;
+    }
 
     /**
      * The output file to write contesa logging into.  May be null, in which case it will go to standard out/err.  It
@@ -47,6 +52,19 @@ class ContesaOpts {
      */
     public String statusEntryFormat = "text";
     public LogEntryFormatter statusEntryFormatter = new LogEntryFormatterText();
+
+    /**
+     * Represents the reportFormats the user has expressed to be on the command line.  XML only by default.
+     */
+    public List<ReportFormat> reportFormats = [ReportFormat.XML];
+    public Boolean hasCustomizedReportFormat = Boolean.FALSE;
+    public Boolean xmlOnlyReport() {
+        Boolean xmlOnlyReport = Boolean.TRUE;
+        for( ReportFormat format : reportFormats )
+            if( format != ReportFormat.XML )
+                xmlOnlyReport = Boolean.FALSE;
+        return xmlOnlyReport;
+    }
 
 
     public ContesaOpts(String[] args){
@@ -81,6 +99,26 @@ class ContesaOpts {
                 }else if( statusEntryFormat.equalsIgnoreCase("text") ){
                     statusEntryFormatter = new LogEntryFormatterText();
                 }
+            }else if( arg.startsWith("-rf=") || arg.toLowerCase().startsWith("--report-format=") ){
+                if( !hasCustomizedReportFormat ){
+                    hasCustomizedReportFormat = Boolean.TRUE
+                    reportFormats = []
+                }
+
+                String reportFormat = parseArgValue(arg)?.toUpperCase();
+                if( reportFormat.equalsIgnoreCase("XML") ){
+                    reportFormats.add(ReportFormat.XML)
+                }else if( reportFormat.equalsIgnoreCase("HTML") ){
+                    reportFormats.add(ReportFormat.HTML)
+                }else if( reportFormat.equalsIgnoreCase("EXCEL") ){
+                    reportFormats.add(ReportFormat.EXCEL)
+                }else if( reportFormat.equalsIgnoreCase("ALL") ){
+                    reportFormats.add(ReportFormat.XML)
+                    reportFormats.add(ReportFormat.HTML)
+                    reportFormats.add(ReportFormat.EXCEL)
+                }else{
+                    throw new Exception("Unable to determine type of report to generate! ${reportFormat} is not supported.")
+                }
 
             }else if( arg.startsWith("-") ){
                 throw new Exception("Unrecognized option: ${arg}");
@@ -93,6 +131,13 @@ class ContesaOpts {
                     throw new Exception("Cannot contain more than one file path to validate.  The system saw ${instancePath} first.")
             }
         }
+
+        if( hasCustomizedReportFormat && !outFilePath ){
+            throw new Exception("Using customized report formats requires that you set an output file (do nothing to spit XML to command line).")
+        }else if( hasCustomizedReportFormat && outFilePath && verbosity < 1 ){
+            verbosity = 1; // This way there is at least some command line output to stdout.
+        }
+
         INSTANCE = this;
     }//end public constructor
 

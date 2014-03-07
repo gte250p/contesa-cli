@@ -160,31 +160,61 @@ class ValidationCLI {
             reportModel.setRulesExecutedCount(currentRuleIndex);
             reportModel.setValidationObjectIdentifier(validationObject.getUniqueIdentifier());
             reportModel.setValidationObjectName(validationObject.getName())
-            reportModel.setValidationObjectSize(-1); // TODO how the hell do I set this?
+            reportModel.setValidationObjectSize(CONTESA_OPTIONS.instanceFile.length()); // TODO how the hell do I set this?
 
 
             logger.debug("Finding report generator...")
+            List<ReportGenerator> reportGeneratorsToExecute = []
             List<ReportGenerator> reportGenerators = serviceManager.getBeans(ReportGenerator.class);
-            ReportGenerator xmlReportGenerator = null;
             reportGenerators.each { generator ->
-                if( !xmlReportGenerator && generator.reportFormat == ReportFormat.XML ){
-                    xmlReportGenerator = generator;
+                if( CONTESA_OPTIONS.reportFormats.contains(generator.reportFormat) ){
+                    reportGeneratorsToExecute.add( generator );
                 }
             }
-            if( !xmlReportGenerator )
-                throw new Exception("Unable to find XML ReportGenerator instance.  Conformance Report cannot be generated.")
+            if( reportGeneratorsToExecute.isEmpty() )
+                throw new Exception("Unable to find report generators.  Conformance Report cannot be generated.")
 
-            Report report = xmlReportGenerator.generate(reportModel);
+            Map<ReportGenerator, Report> reports = [:]
+            // Go ahead and execute the reports, storing the values in memory.
+            reportGeneratorsToExecute.each{ reportGenerator ->
+                logger.debug("Generatring report from ReportGenerator[@|cyan ${reportGenerator.class.name}|@]...")
+                Report report = reportGenerator.generate(reportModel);
+                reports.put(reportGenerator, report);
+            }
             eventListener.reportGenerationStop()
 
-            if( CONTESA_OPTIONS.outFilePath && CONTESA_OPTIONS.outFilePath.trim().length() > 0 ){
-                FileOutputStream fOut = new FileOutputStream(CONTESA_OPTIONS.outFilePath, false);
-                IOUtils.copy(report.inputStream, fOut);
-                fOut.flush();
-                fOut.close();
-            }else{
-                System.out.println(new String(report.getInputStream().bytes));
-                System.out.flush();
+
+            logger.debug("Writing report(s)..")
+            if( CONTESA_OPTIONS.xmlOnlyReport() && !CONTESA_OPTIONS.hasOutFilePath() ){
+                // If XML is the only report, and there is no log file, then we can output to stdout (but this is the only case allowing that).
+                reports.keySet().each { key ->
+                    Report report = reports.get(key);
+                    System.out.println(new String(report.getInputStream().bytes));
+                    System.out.flush();
+                }
+            }else{ // There must exist an out file path now (see CONTESA_OPTIONS processing logic - it excludes the other case).
+                File outFile = new File(CONTESA_OPTIONS.outFilePath);
+                if( outFile.exists() )
+                    outFile.delete();
+
+                File parentFile = outFile.parentFile;
+                if( !parentFile.exists() && !parentFile.mkdirs() ){
+                    throw new Exception("Unable to create directory for report file(s): ${parentFile.canonicalPath}")
+                }
+                reports.keySet().each{ ReportGenerator generator ->
+                    Report report = reports.get(generator);
+                    logger.debug("Writing report: ${report.getName()}")
+                    // TODO Does not handle multiple output files of same type!
+                    File reportOutFile = new File(CONTESA_OPTIONS.outFilePath + "." + report.getFormat().toString().toLowerCase());
+                    if( reportOutFile.exists() )
+                        reportOutFile.delete()
+
+                    FileOutputStream fOut = new FileOutputStream(reportOutFile, false);
+                    IOUtils.copy(report.inputStream, fOut);
+                    fOut.flush();
+                    fOut.close();
+                }
+
             }
 
             eventListener.validationComplete(); // Must be called last on event listener.
@@ -192,7 +222,8 @@ class ValidationCLI {
             System.exit(0);
         }catch(Throwable t){
             logger.error(t.getMessage());
-            t.printStackTrace(System.err);
+            if( !CONTESA_OPTIONS || (CONTESA_OPTIONS && CONTESA_OPTIONS.verbosity >= 1) )
+                t.printStackTrace(System.err);
             System.exit(1);
         }
     }//end main()
@@ -216,17 +247,19 @@ class ValidationCLI {
         reportRuleContext.internalId = ruleContext.name.hashCode()
         reportRuleContext.name = ruleContext.name
         def rules = []
-        for( BusinessRule rule : ruleContext.rules ){
+        ruleContext.rules.each{ BusinessRule rule ->
             ReportBusinessRule reportBusinessRule = createReportBusinessRule(rule);
             rules.add(reportBusinessRule);
         }
         reportRuleContext.rules = rules
+        logger.debug("Successfully created ReportRuleContext[@|green ${reportRuleContext.name}|@] with @|green ${reportRuleContext.rules.size()}|@ rules")
         return reportRuleContext;
     }
 
     private static ReportBusinessRule createReportBusinessRule(BusinessRule rule){
         ReportBusinessRule reportBusinessRule = new ReportBusinessRule();
         reportBusinessRule.setDescription(rule.getDescription());
+//        logger.debug("Creating rule: @|cyan ${rule.getIdentifier()}|@...")
         reportBusinessRule.setIdentifier(rule.getIdentifier());
         reportBusinessRule.setImplementationNote(rule.getImplementationDetails().getNote());
         reportBusinessRule.setImplementationStatus(rule.getImplementationDetails().getStatus().toString());
@@ -235,11 +268,17 @@ class ValidationCLI {
     }
 
     private static ReportBusinessRule findReportBusinessRule(ReportRuleContext context, BusinessRule rule){
-        context?.rules.each{ reportBusinessRule ->
-            if( reportBusinessRule.identifier == rule.identifier )
-                return reportBusinessRule;
+        ReportBusinessRule reportBusinessRuleToReturn = null;
+        logger.debug("Search for rule @|cyan ${rule.identifier}|@ in Context[@|green ${context?.name}|@] => @|green ${context?.rules.size()}|@ rules...")
+        context?.rules.each{ ReportBusinessRule reportBusinessRule ->
+            if( reportBusinessRule.identifier == rule.getIdentifier() )
+                reportBusinessRuleToReturn = reportBusinessRule;
         }
-        return null;
+        if( reportBusinessRuleToReturn == null ){
+            logger.error("Could not find rule[@|red ${rule?.getIdentifier()}|@] on context: @|yellow ${context?.name}|@")
+            throw new RuntimeException("Could not locate rule[${rule?.getIdentifier()}] in ${context?.rules.size()} rules for context[${context?.name}]");
+        }
+        return reportBusinessRuleToReturn;
     }
 
     private static void validateOptions(ContesaOpts opts){
