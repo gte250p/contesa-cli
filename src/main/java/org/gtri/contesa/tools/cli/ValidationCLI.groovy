@@ -198,7 +198,7 @@ class ValidationCLI {
                     outFile.delete();
 
                 File parentFile = outFile.parentFile;
-                if( !parentFile.exists() && !parentFile.mkdirs() ){
+                if( parentFile && !parentFile.exists() && !parentFile.mkdirs() ){
                     throw new Exception("Unable to create directory for report file(s): ${parentFile.canonicalPath}")
                 }
                 reports.keySet().each{ ReportGenerator generator ->
